@@ -6,3 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+pollster = "0.3.0"
+rand = "0.8.5"
+web-time = "1.1.0"
+
+[dependencies.jandering_engine]
+path = "../jandering_engine"
