@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LSystem</title>
+    <style>
+      canvas {
+        background-color: black;
+      }
+    </style>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto&family=Roboto+Mono&display=swap"
+      rel="stylesheet"
+    />
+    <link href="normalize.css" rel="stylesheet" />
+    <style>
+      :root {
+        --darkest-color: #252c4d;
+        --mid-color: #434b76;
+        --light-color: #463f50;
+        --font-color: #ffffff;
+      }
+
+      html,
+      body {
+        height: 100%;
+        width: auto;
+        font-family: "Roboto", sans-serif;
+        text-rendering: geometricPrecision;
+        color: var(--font-color);
+      }
+
+      body {
+        background: var(--darkest-color);
+        display: flex;
+        justify-content: center;
+        margin: 0;
+      }
+
+      div#main-container {
+        display: flex;
+        flex-direction: row-reverse;
+        gap: 1em;
+        width: 100%;
+        padding: 1em;
+      }
+
+      div#right-side {
+        max-height: 100vmin;
+        max-width: 500px;
+        display: flex;
+        flex-direction: column;
+        gap: 1em;
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+
+      .text-container {
+        height: auto;
+        width: auto;
+        word-wrap: unset;
+        background-color: var(--light-color);
+        border: unset;
+        border: 0.15em solid var(--font-color);
+        border-radius: 5px;
+        font-size: 15px;
+        font-family: "Roboto", sans-serif;
+        font-family: "Roboto Mono", monospace;
+        padding: 1em;
+        color: var(--font-color);
+      }
+
+      #lsystem_rules {
+        width: 100%;
+      }
+
+      #lsystem_output {
+        word-wrap: break-word;
+      }
+
+      div#jandering-engine-canvas-body {
+        background-color: var(--main-color);
+        height: 500px;
+        width: 500px;
+      }
+
+      .text {
+        margin: 0;
+        padding: 0;
+      }
+
+      .not-selectable {
+        user-select: none;
+      }
+
+      .fake-p {
+        margin-top: 1em;
+      }
+
+      @media (max-width: 800px) {
+        body {
+          justify-content: center;
+        }
+
+        div#main-container {
+          flex-direction: column;
+          align-items: center;
+          width: 100%;
+        }
+
+        div#right-side {
+          width: 100%;
+          min-height: 600px;
+        }
+
+        #lsystem_rules {
+          height: 100%;
+          width: 500px;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="main-container">
+      <div id="right-side">
+        <div id="jandering-engine-canvas-body"></div>
+        <div id="lsystem_output" class="text-container">
+          <div class="text not-selectable">Output:</div>
+          <div class="text fake-p" id="lsystem_output_textbox"></div>
+        </div>
+      </div>
+      <textarea
+        autocorrect="off"
+        autocapitalize="off"
+        spellcheck="false"
+        id="lsystem_rules"
+        class="text-container"
+      >
+{
+  "rules": {
+    "iterations": 6,
+    "initial": "X",
+    "rules": {
+      "F": [
+        {
+          "result": "F",
+          "chance": 0.1
+        },
+        {
+          "result": "FF",
+          "chance": 0.85
+        },
+        {
+          "result": "FFF",
+          "chance": 0.05
+        }
+      ],
+      "X": [
+        { "result": "F[+X][-X]FX", "chance": 0.5 },
+        { "result": "F[+X]FX", "chance": 0.05 },
+        { "result": "F[-X]FX", "chance": 0.05 },
+        { "result": "F[++X][-X]FX", "chance": 0.1 },
+        { "result": "F[+X][--X]FX", "chance": 0.1 },
+        { "result": "F[+X][-X]FA", "chance": 0.2 }
+      ]
+    }
+  },
+  "shapes": {
+    "F": {
+      "Line": {
+        "width": 2.0,
+        "length": 4.0,
+        "angle": 25.0,
+        "color": [0.5, 0.7, 0.1]
+      }
+    },
+    "A": {
+      "Circle": {
+        "size": 5.0,
+        "color": [1.0, 0.5, 0.2]
+      }
+    }
+  }
+}
+
+      </textarea>
+    </div>
+  </body>
+
+  <script type="module" defer>
+    import init from "./pkg/l_system.js";
+    init().then(() => {
+      console.log("WASM initialized");
+    });
+  </script>
+</html>

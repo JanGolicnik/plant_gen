@@ -1,56 +1,58 @@
 use std::collections::HashMap;
 
 use rand::Rng;
+use serde::Deserialize;
 
+#[derive(Deserialize, Debug)]
+pub struct Rule {
+    result: String,
+    chance: f32,
+}
+
+#[derive(Deserialize)]
+pub struct LSystemConfig {
+    iterations: u32,
+    initial: String,
+    rules: HashMap<char, Vec<Rule>>,
+}
+
+impl Default for LSystemConfig {
+    fn default() -> Self {
+        Self {
+            iterations: 0,
+            initial: "".to_string(),
+            rules: HashMap::new(),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct LSystem {
     symbols: Vec<char>,
 }
 
 impl LSystem {
-    pub fn new(symbols: String, iterations: u32) -> Self {
-        struct Rule {
-            result: &'static str,
-            probability: f32,
-        }
-
-        let rule = |result, probability| Rule {
-            result,
-            probability,
-        };
-
-        let rules = HashMap::from([
-            (
-                'F',
-                vec![rule("F", 0.1), rule("FF", 0.85), rule("FFF", 0.05)],
-            ),
-            (
-                'X',
-                vec![
-                    rule("F[+X][-X]FX", 0.5),
-                    rule("F[+X]FX", 0.05),
-                    rule("F[-X]FX", 0.05),
-                    rule("F[++X][-X]FX", 0.1),
-                    rule("F[+X][--X]FX", 0.1),
-                    rule("F[+X][-X]FA", 0.2),
-                ],
-            ),
-        ]);
-
+    pub fn new(config: LSystemConfig) -> Self {
+        let LSystemConfig {
+            iterations,
+            initial,
+            rules,
+        } = config;
         let mut rng = rand::thread_rng();
 
         let mut pick_rule = |rules: &[Rule]| {
             let n = rng.gen::<f32>();
             let mut t = 0.0;
             for rule in rules.iter() {
-                t += rule.probability;
+                t += rule.chance;
                 if t > n {
-                    return Some(rule.result);
+                    return Some(rule.result.clone());
                 }
             }
             None
         };
 
-        let mut symbols = symbols.chars().collect::<Vec<_>>();
+        let mut symbols = initial.chars().collect::<Vec<_>>();
         (0..iterations).for_each(|_| {
             let mut new_symbols = Vec::new();
             for symbol in symbols.iter() {
@@ -63,10 +65,11 @@ impl LSystem {
             }
             symbols = std::mem::take(&mut new_symbols);
         });
+
         Self { symbols }
     }
 
-    pub fn symbols(&self) -> std::slice::Iter<'_, char> {
-        self.symbols.iter()
+    pub fn symbols(&self) -> &[char] {
+        &self.symbols
     }
 }

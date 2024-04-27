@@ -2,9 +2,8 @@ use jandering_engine::{
     core::{
         bind_group::camera::d2::D2CameraBindGroup,
         object::{D2Instance, Object, Vertex},
-        renderer::{BindGroupHandle, RenderPass, Renderer, ShaderHandle, TextureHandle},
+        renderer::{BindGroupHandle, RenderPass, Renderer, ShaderHandle},
         shader::{ShaderDescriptor, ShaderSource},
-        texture::TextureDescriptor,
     },
     types::{Vec2, Vec3},
 };
@@ -16,27 +15,24 @@ pub struct ShapeRenderer {
     circles: Object<D2Instance>,
     current_line: usize,
     current_circle: usize,
-    multisample_texture: TextureHandle,
 }
 
 impl ShapeRenderer {
-    pub fn new(renderer: &mut dyn Renderer) -> Self {
+    pub async fn new(renderer: &mut dyn Renderer) -> Self {
         let line_shader = renderer.create_shader(
             ShaderDescriptor::flat()
                 .with_descriptors(vec![Vertex::desc(), D2Instance::desc()])
                 .with_bind_group_layouts(vec![D2CameraBindGroup::get_layout()])
-                .with_multisample(4)
                 .with_backface_culling(false),
         );
 
         let circle_shader = renderer.create_shader(
             ShaderDescriptor::default()
-                .with_source(ShaderSource::Path(
-                    jandering_engine::utils::FilePath::FileName("shaders/circle_shader.wgsl"),
-                ))
+                .with_source(ShaderSource::Code(include_str!(
+                    "../res/shaders/circle_shader.wgsl"
+                )))
                 .with_descriptors(vec![Vertex::desc(), D2Instance::desc()])
                 .with_bind_group_layouts(vec![D2CameraBindGroup::get_layout()])
-                .with_multisample(4)
                 .with_backface_culling(false),
         );
 
@@ -56,12 +52,6 @@ impl ShapeRenderer {
             }],
         );
 
-        let multisample_texture = renderer.create_texture(TextureDescriptor {
-            size: renderer.size(),
-            sample_count: 4,
-            ..Default::default()
-        });
-
         Self {
             line_shader,
             circle_shader,
@@ -69,7 +59,6 @@ impl ShapeRenderer {
             circles,
             current_line: 0,
             current_circle: 0,
-            multisample_texture,
         }
     }
 
@@ -130,7 +119,6 @@ impl ShapeRenderer {
     ) -> Box<dyn RenderPass<'renderer> + 'renderer> {
         render_pass
             .set_shader(self.line_shader)
-            .with_target_texture_resolve(self.multisample_texture, None)
             .bind(0, camera.into())
             .render(&[&self.lines])
             .set_shader(self.circle_shader)

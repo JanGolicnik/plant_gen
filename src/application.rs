@@ -1,3 +1,6 @@
+use std::{collections::HashMap, hash::Hash};
+
+use async_trait::async_trait;
 use jandering_engine::{
     core::{
         bind_group::{camera::d2::D2CameraBindGroup, BindGroup},
@@ -7,12 +10,31 @@ use jandering_engine::{
             create_typed_bind_group, get_typed_bind_group, get_typed_bind_group_mut,
             BindGroupHandle, Renderer,
         },
-        window::{InputState, Key, MouseButton, WindowEvent},
+        window::{InputState, MouseButton, WindowEvent},
     },
     types::{Vec2, Vec3, DEG_TO_RAD},
 };
+use serde::Deserialize;
+use wasm_bindgen::JsCast;
 
-use crate::{l_system::LSystem, shape_renderer::ShapeRenderer};
+use crate::{
+    l_system::{LSystem, LSystemConfig},
+    shape_renderer::ShapeRenderer,
+};
+
+#[derive(Deserialize)]
+enum Shape {
+    Line {
+        width: f32,
+        length: f32,
+        angle: f32,
+        color: [f32; 3],
+    },
+    Circle {
+        size: f32,
+        color: [f32; 3],
+    },
+}
 
 pub struct Application {
     last_time: web_time::Instant,
@@ -22,19 +44,22 @@ pub struct Application {
     system: LSystem,
 
     shape_renderer: ShapeRenderer,
+
+    should_redraw: bool,
+
+    render_config: HashMap<char, Shape>,
 }
 
 impl Application {
     pub async fn new(engine: &mut Engine) -> Self {
         let resolution = engine.renderer.size();
-        let camera = create_typed_bind_group(
-            engine.renderer.as_mut(),
-            D2CameraBindGroup::new(resolution, true),
-        );
+        let mut camera = D2CameraBindGroup::new(resolution, true);
+        camera.position.y = -500.0;
+        let camera = create_typed_bind_group(engine.renderer.as_mut(), camera);
 
-        let shape_renderer = ShapeRenderer::new(engine.renderer.as_mut());
+        let shape_renderer = ShapeRenderer::new(engine.renderer.as_mut()).await;
 
-        let system = LSystem::new("".to_string(), 0);
+        let system = LSystem::new(LSystemConfig::default());
 
         Self {
             last_time: web_time::Instant::now(),
@@ -42,13 +67,12 @@ impl Application {
             camera,
             system,
             shape_renderer,
+            should_redraw: true,
+            render_config: HashMap::new(),
         }
     }
 
     fn draw_system(&mut self) {
-        let branch_color = Vec3::new(0.5, 0.7, 0.1);
-        let circle_color = Vec3::new(1.0, 0.5, 0.2);
-
         #[derive(Clone)]
         struct State {
             position: Vec2,
@@ -64,25 +88,11 @@ impl Application {
             }
         }
 
-        let mut states = vec![State::default()];
+        let mut angle_change = 15.0;
 
-        for symbol in self.system.symbols() {
+        let mut states = vec![State::default()];
+        for symbol in self.system.symbols().iter() {
             match symbol {
-                'F' => {
-                    let state = states.last_mut().unwrap();
-                    let end = state.position
-                        + Vec2::from_angle(state.angle * DEG_TO_RAD).rotate(Vec2::new(0.0, 8.0));
-                    self.shape_renderer
-                        .draw_line(state.position, end, 1.0, branch_color);
-                    state.position = end;
-                }
-                'A' => {
-                    self.shape_renderer.draw_circle(
-                        states.last().unwrap().position,
-                        2.0,
-                        circle_color,
-                    );
-                }
                 '[' => states.push(states.last().unwrap().clone()),
                 ']' => {
                     if states.len() > 1 {
@@ -92,12 +102,43 @@ impl Application {
                     }
                 }
                 '+' => {
-                    states.last_mut().unwrap().angle += 15.0;
+                    states.last_mut().unwrap().angle += angle_change;
                 }
                 '-' => {
-                    states.last_mut().unwrap().angle -= 15.0;
+                    states.last_mut().unwrap().angle -= angle_change;
                 }
-                _ => {}
+                _ => {
+                    if let Some(shape) = self.render_config.get(symbol) {
+                        match shape {
+                            Shape::Line {
+                                width,
+                                length,
+                                angle,
+                                color,
+                            } => {
+                                let state = states.last_mut().unwrap();
+                                let end = state.position
+                                    + Vec2::from_angle(state.angle * DEG_TO_RAD)
+                                        .rotate(Vec2::new(0.0, *length));
+                                self.shape_renderer.draw_line(
+                                    state.position,
+                                    end,
+                                    *width,
+                                    Vec3::from(*color),
+                                );
+                                state.position = end;
+                                angle_change = *angle;
+                            }
+                            Shape::Circle { size, color } => {
+                                self.shape_renderer.draw_circle(
+                                    states.last().unwrap().position,
+                                    *size,
+                                    Vec3::from(*color),
+                                );
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -112,34 +153,74 @@ impl Application {
                 }
             )
         }) {
-            self.system = LSystem::new("X".to_string(), 6);
+            #[derive(Deserialize)]
+            struct Config {
+                shapes: HashMap<char, Shape>,
+                rules: LSystemConfig,
+            }
+
+            let json = Self::get_rules_json();
+            match serde_json::from_str::<Config>(&json) {
+                Ok(config) => {
+                    self.system = LSystem::new(config.rules);
+                    self.render_config = config.shapes;
+                    Self::output(self.system.symbols().iter().collect::<String>())
+                }
+                Err(e) => Self::output(e.to_string()),
+            }
         }
 
         self.draw_system();
     }
+
+    fn get_rules_json() -> String {
+        let doc = web_sys::window().and_then(|win| win.document()).unwrap();
+        let el = doc
+            .get_element_by_id("lsystem_rules")
+            .expect("should have a #lsystem_rules on the page");
+
+        let textarea = el
+            .dyn_ref::<web_sys::HtmlTextAreaElement>()
+            .expect("#lsystem_rules should be an `HtmlTextAreaElement`");
+
+        textarea.value()
+    }
+
+    fn output(text: String) {
+        let doc = web_sys::window().and_then(|win| win.document()).unwrap();
+        let el = doc
+            .get_element_by_id("lsystem_output_textbox")
+            .expect("should have a #lsystem_output_textbox on the page");
+        el.set_inner_html(&text);
+    }
 }
 
+#[async_trait]
 impl EventHandler for Application {
-    fn on_update(&mut self, context: &mut EngineContext) {
+    fn on_update(&mut self, context: &mut EngineContext<'_>) {
         let current_time = web_time::Instant::now();
         let dt = (current_time - self.last_time).as_secs_f32();
         self.last_time = current_time;
         self.time += dt;
 
-        let resolution = context.renderer.size();
-        let camera = get_typed_bind_group_mut(context.renderer.as_mut(), self.camera).unwrap();
-        camera.update(context.events, context.window, resolution, dt);
-
         if context.events.iter().any(|e| {
             matches!(
                 e,
-                WindowEvent::KeyInput {
-                    key: Key::N,
-                    state: InputState::Pressed
-                }
+                WindowEvent::MouseMotion(_)
+                    | WindowEvent::MouseInput { .. }
+                    | WindowEvent::Scroll(_)
             )
         }) {
-            context.renderer.re_create_shaders();
+            self.should_redraw = true;
+        }
+
+        let resolution = context.renderer.size();
+        let camera = get_typed_bind_group_mut(context.renderer.as_mut(), self.camera).unwrap();
+        camera.update(context.events, context.window, resolution, dt);
+        let y_limit = -500.0 * camera.controller.as_ref().unwrap().zoom;
+        if camera.position.y > y_limit {
+            camera.position.y = y_limit;
+            camera.update_data();
         }
 
         self.run(context);
@@ -148,6 +229,12 @@ impl EventHandler for Application {
     }
 
     fn on_render(&mut self, renderer: &mut Box<dyn Renderer>) {
+        if !self.should_redraw {
+            return;
+        }
+
+        self.should_redraw = false;
+
         let camera = get_typed_bind_group(renderer.as_ref(), self.camera).unwrap();
         renderer.write_bind_group(self.camera.into(), &camera.get_data());
 
