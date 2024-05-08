@@ -1,0 +1,46 @@
+{
+  "rules": {
+    "iterations": 6,
+    "initial": "X",
+    "rules": {
+      "F": [
+        {
+          "result": "F",
+          "chance": 0.1
+        },
+        {
+          "result": "FF",
+          "chance": 0.85
+        },
+        {
+          "result": "FFF",
+          "chance": 0.05
+        }
+      ],
+      "X": [
+        { "result": "F[+X][-X]FX", "chance": 0.5 },
+        { "result": "F[+X]FX", "chance": 0.05 },
+        { "result": "F[-X]FX", "chance": 0.05 },
+        { "result": "F[++X][-X]FX", "chance": 0.1 },
+        { "result": "F[+X][--X]FX", "chance": 0.1 },
+        { "result": "F[+X][-X]FA", "chance": 0.2 }
+      ]
+    }
+  },
+  "shapes": {
+    "F": {
+      "Shape": {
+        "width": 2.0,
+        "length": 4.0,
+        "angle": 25.0,
+        "color": [0.5, 0.7, 0.1]
+      }
+    },
+    "A": {
+      "Shape": {
+        "size": 5.0,
+        "color": [1.0, 0.5, 0.2]
+      }
+    }
+  }
+}

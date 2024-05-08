@@ -2,7 +2,8 @@ use application::Application;
 use jandering_engine::core::{engine::EngineBuilder, window::WindowBuilder};
 
 mod application;
-mod camera_controller;
+mod l_system;
+mod shape_renderer;
 
 use wasm_bindgen::prelude::*;
 
@@ -15,7 +16,7 @@ async fn main() {
         .with_window(
             WindowBuilder::default()
                 .with_cursor(true)
-                .with_auto_resolution()
+                .with_resolution(500, 500)
                 .with_title("heyy")
                 .with_cursor(true),
         )
